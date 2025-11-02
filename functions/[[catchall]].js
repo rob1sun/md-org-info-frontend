@@ -1,38 +1,13 @@
 /**
- * functions/[[catchall]].js
- * * En smartare proxy som kan hantera flera saker:
- * 1. Svara på anrop till '/config' själv.
- * 2. Skicka alla andra anrop (som /data.json) vidare till API_WORKER.
+ * Cloudflare Pages "Functions" Proxy.
+ * Denna fil fångar upp alla anrop som inte är statiska filer
+ * (t.ex. /data.json, /export.csv) och skickar dem vidare till din
+ * bundna data-worker.
  */
 export async function onRequest(context) {
-  const url = new URL(context.request.url);
-  const pathname = url.pathname;
-
-  // *** NY LOGIK: Hantera /config-anropet här ***
-  if (pathname === '/config') {
-    try {
-      // Hämta variabeln från Pages-inställningarna
-      const rowsPerPage = context.env.ROWS_PER_PAGE || 100;
-
-      const config = {
-        rowsPerPage: parseInt(rowsPerPage, 10)
-      };
-
-      return new Response(JSON.stringify(config), {
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=600' // Cacha i 10 min
-        },
-      });
-    } catch (err) {
-      console.error('Kunde inte hämta config:', err);
-      return new Response(JSON.stringify({ error: 'Kunde inte ladda config' }), { status: 500 });
-    }
-  }
-
-  // --- Befintlig logik för allt annat ---
   
-  // Kontrollera att API-bindningen finns
+  // 'API_WORKER' är namnet du måste ge din Service Binding
+  // i Cloudflare Pages-projektets inställningar.
   if (!context.env.API_WORKER) {
     console.error("Service Binding 'API_WORKER' saknas.");
     return new Response(
@@ -42,8 +17,8 @@ export async function onRequest(context) {
   }
 
   try {
-    // Skicka vidare alla andra anrop (t.ex. /data.json, /export.csv)
-    // till din backend-worker.
+    // Ta emot anropet från webbläsaren (context.request) och skicka det
+    // direkt vidare till din data-worker via bindningen.
     return await context.env.API_WORKER.fetch(context.request);
     
   } catch (err) {
